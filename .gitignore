@@ -220,3 +220,6 @@ dist/
 # IDE specific files
 *.swp
 *.swo
+
+# Icon generation script
+generate_icon.py
