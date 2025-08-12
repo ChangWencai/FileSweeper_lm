@@ -52,6 +52,16 @@ You can customize FileSweeper's behavior through the Settings dialog:
 
 Settings are saved automatically and will persist between application sessions.
 
+## Icons
+
+Application icons for Windows, macOS, and Linux are located in the `icons` directory:
+
+- Windows: `icons/icon.ico`
+- macOS: `icons/icon_*.png` (multiple sizes)
+- Linux: `icons/icon_linux_*.png` (multiple sizes)
+
+See [ICONS.md](ICONS.md) for detailed information on how to use these icons when packaging the application.
+
 ## Technical Details
 
 ### Architecture
@@ -81,17 +91,24 @@ FileSweeper follows a modular architecture with clear separation of concerns:
 
 Using PyInstaller:
 ```bash
-pyinstaller --onefile --windowed main.py
+pyinstaller --onefile --windowed --icon=icons/icon.ico main.py
 ```
 
 ### macOS
 
 Using PyInstaller:
 ```bash
-pyinstaller --onefile --windowed main.py
+pyinstaller --onefile --windowed --icon=icons/icon_256x256.png main.py
 ```
 
 Note: For macOS 10.15+, code signing and notarization may be required for distribution.
+
+### Linux
+
+Using PyInstaller:
+```bash
+pyinstaller --onefile --windowed --icon=icons/icon_linux_256x256.png main.py
+```
 
 ## Contributing
 
