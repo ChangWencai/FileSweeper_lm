@@ -1,94 +1,110 @@
-# 文件清理工具(FileSweeper)
+# FileSweeper
 
-一个跨平台的图形化应用程序，帮助用户识别、查看和管理计算机上的重复文件，提供直观的界面让用户决定保留或删除这些文件，从而优化存储空间。
+FileSweeper is a cross-platform desktop application built with Python and PySide6 that helps you identify and manage duplicate files on your computer. It can scan directories, find duplicate files based on content (not just names), and allows you to selectively delete duplicates while keeping one copy.
 
-## 功能特性
+## Features
 
-- 跨平台支持：支持Windows、macOS和Linux
-- 图形化界面：基于PySide6的现代化界面
-- 文件扫描：递归扫描文件夹，支持进度显示
-- 重复文件识别：使用MD5哈希算法准确识别内容完全相同的文件
-- 文件管理：提供文件预览和批量删除功能
-- 安全删除：使用回收站机制，防止误删文件
+- Cross-platform support (Windows, macOS, Linux)
+- Fast duplicate file detection using file hashing
+- Intuitive graphical user interface
+- Selective file deletion with recycle bin support
+- Group-based file organization for easy management
+- Configurable settings for default behaviors
+- Double-click to open files with system default applications
 
-## 安装依赖
+## Screenshots
 
-```bash
-pip install -r requirements.txt
-```
+![Main Interface](screenshots/main_interface.png)
 
-## 运行程序
+## Installation
 
-```bash
-python main.py
-```
+### Prerequisites
 
-## 使用说明
+- Python 3.8 or higher
+- pip (Python package installer)
 
-1. 启动程序后，点击"选择扫描目录"按钮选择要扫描的文件夹
-2. 点击"开始扫描"按钮开始扫描
-3. 程序会自动识别重复文件并显示在结果列表中
-4. 用户可以选择要删除的文件，然后执行删除操作
+### Steps
 
-## 技术架构
+1. Clone or download this repository
+2. Install required dependencies:
+   ```bash
+   pip install -r requirements.txt
+   ```
+3. Run the application:
+   ```bash
+   python main.py
+   ```
 
-- 编程语言：Python 3
-- GUI框架：PySide6 (Qt6)
-- 核心功能：
-  - 文件扫描：使用os.walk递归遍历文件系统
-  - 重复检测：先按文件大小分组，再计算MD5哈希值比较
-  - 多线程：使用QThread避免界面卡顿
-  - 安全删除：使用send2trash库将文件移至回收站
+## Usage
 
-## 项目结构
+1. Select a directory to scan for duplicate files
+2. Click "Scan" to start the scanning process
+3. Review the detected duplicate files organized in groups
+4. Select files you want to delete (by default, the first file in each group is not selected)
+5. Click "Delete Selected" to move selected files to the recycle bin
 
-```
-FileSweeper/
-├── main.py                 # 程序入口
-├── requirements.txt        # 依赖列表
-├── core/                   # 核心功能模块
-│   ├── __init__.py
-│   ├── scanner.py          # 文件扫描器
-│   └── duplicate_finder.py # 重复文件查找器
-└── ui/                     # 界面模块
-    ├── __init__.py
-    ├── main_window.py      # 主窗口
-    ├── file_tree_view.py   # 文件树视图
-    └── duplicate_table_view.py # 重复文件表格视图
-```
+## Configuration
 
-## 打包发布
+You can customize FileSweeper's behavior through the Settings dialog:
+
+- **Auto-select duplicates**: Choose whether to automatically select all but the first file in each duplicate group
+- **Trash delete method**: Choose whether to move files to the recycle bin or permanently delete them
+
+Settings are saved automatically and will persist between application sessions.
+
+## Technical Details
+
+### Architecture
+
+FileSweeper follows a modular architecture with clear separation of concerns:
+
+- **UI Layer**: PySide6-based graphical interface
+- **Core Logic**: File scanning and duplicate detection algorithms
+- **Data Models**: Qt models for efficient data handling and display
+
+### File Scanning Process
+
+1. Directory traversal using `os.walk`
+2. File grouping by size (quick pre-filtering)
+3. Content-based duplicate detection using MD5 hashing
+4. Results displayed in a structured table view
+
+### Security
+
+- Files are moved to the recycle bin by default (using `send2trash` library)
+- Confirmation dialog before any deletion operation
+- No automatic deletion without user consent
+
+## Building Executables
 
 ### Windows
 
-使用PyInstaller打包：
-
+Using PyInstaller:
 ```bash
-pyinstaller --windowed --name=FileSweeper --icon=icon.ico main.py
+pyinstaller --onefile --windowed main.py
 ```
 
 ### macOS
 
-使用py2app打包：
-
+Using PyInstaller:
 ```bash
-python setup.py py2app
+pyinstaller --onefile --windowed main.py
 ```
 
-## 开发计划
+Note: For macOS 10.15+, code signing and notarization may be required for distribution.
 
-- [x] 基本框架搭建
-- [x] 文件扫描功能
-- [x] 重复文件识别
-- [ ] 文件预览功能
-- [ ] 批量删除功能
-- [ ] 设置界面
-- [ ] 导出扫描结果
-- [ ] 帮助文档
+## Contributing
 
-## 许可证
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-MIT License
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## Acknowledgments
+
+- Built with [PySide6](https://www.qt.io/qt-for-python)
+- Uses [send2trash](https://github.com/arsenetar/send2trash) for safe file deletion
 # 文件清理工具(FileSweeper)需求文档
 
 ## 1. 项目概述
