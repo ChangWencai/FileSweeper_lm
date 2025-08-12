@@ -2,29 +2,29 @@
 
 ## 生成的图标文件
 
-图标生成脚本 (`generate_icon.py`) 会生成适用于不同平台的图标文件：
+图标生成脚本 (`generate_icon.py`) 会生成适用于不同平台的图标文件，所有图标文件都位于 `icons` 目录中：
 
 ### Windows
-- `icon.ico` - Windows应用程序图标（包含多种尺寸）
+- `icons/icon.ico` - Windows应用程序图标（包含多种尺寸）
 
 ### macOS
-- `icon_16x16.png`
-- `icon_32x32.png`
-- `icon_64x64.png`
-- `icon_128x128.png`
-- `icon_256x256.png`
-- `icon_512x512.png`
+- `icons/icon_16x16.png`
+- `icons/icon_32x32.png`
+- `icons/icon_64x64.png`
+- `icons/icon_128x128.png`
+- `icons/icon_256x256.png`
+- `icons/icon_512x512.png`
 
 注意：macOS原生使用ICNS格式，但PyInstaller等打包工具通常可以直接使用PNG文件。如需生成ICNS文件，可以使用macOS自带的`sips`或第三方工具。
 
 ### Linux
-- `icon_linux_16x16.png`
-- `icon_linux_24x24.png`
-- `icon_linux_32x32.png`
-- `icon_linux_48x48.png`
-- `icon_linux_64x64.png`
-- `icon_linux_128x128.png`
-- `icon_linux_256x256.png`
+- `icons/icon_linux_16x16.png`
+- `icons/icon_linux_24x24.png`
+- `icons/icon_linux_32x32.png`
+- `icons/icon_linux_48x48.png`
+- `icons/icon_linux_64x64.png`
+- `icons/icon_linux_128x128.png`
+- `icons/icon_linux_256x256.png`
 
 ## 打包时使用图标
 
@@ -32,17 +32,17 @@
 
 #### Windows
 ```bash
-pyinstaller --onefile --windowed --icon=icon.ico main.py
+pyinstaller --onefile --windowed --icon=icons/icon.ico main.py
 ```
 
 #### macOS
 ```bash
-pyinstaller --onefile --windowed --icon=icon_256x256.png main.py
+pyinstaller --onefile --windowed --icon=icons/icon_256x256.png main.py
 ```
 
 #### Linux
 ```bash
-pyinstaller --onefile --windowed --icon=icon_linux_256x256.png main.py
+pyinstaller --onefile --windowed --icon=icons/icon_linux_256x256.png main.py
 ```
 
 ## 创建macOS ICNS文件（可选）
@@ -51,24 +51,24 @@ pyinstaller --onefile --windowed --icon=icon_linux_256x256.png main.py
 
 ```bash
 # 创建图标目录
-mkdir -p icon.iconset
+mkdir -p icons/icon.iconset
 
 # 复制PNG文件到图标目录（需要特定文件名）
-cp icon_16x16.png icon.iconset/icon_16x16.png
-cp icon_32x32.png icon.iconset/icon_16x16@2x.png
-cp icon_32x32.png icon.iconset/icon_32x32.png
-cp icon_64x64.png icon.iconset/icon_32x32@2x.png
-cp icon_128x128.png icon.iconset/icon_128x128.png
-cp icon_256x256.png icon.iconset/icon_128x128@2x.png
-cp icon_256x256.png icon.iconset/icon_256x256.png
-cp icon_512x512.png icon.iconset/icon_256x256@2x.png
-cp icon_512x512.png icon.iconset/icon_512x512.png
+cp icons/icon_16x16.png icons/icon.iconset/icon_16x16.png
+cp icons/icon_32x32.png icons/icon.iconset/icon_16x16@2x.png
+cp icons/icon_32x32.png icons/icon.iconset/icon_32x32.png
+cp icons/icon_64x64.png icons/icon.iconset/icon_32x32@2x.png
+cp icons/icon_128x128.png icons/icon.iconset/icon_128x128.png
+cp icons/icon_256x256.png icons/icon.iconset/icon_128x128@2x.png
+cp icons/icon_256x256.png icons/icon.iconset/icon_256x256.png
+cp icons/icon_512x512.png icons/icon.iconset/icon_256x256@2x.png
+cp icons/icon_512x512.png icons/icon.iconset/icon_512x512.png
 
 # 创建ICNS文件
-iconutil -c icns icon.iconset
+iconutil -c icns icons/icon.iconset
 
 # 清理临时目录
-rm -rf icon.iconset
+rm -rf icons/icon.iconset
 ```
 
 ## Qt应用程序中使用图标
@@ -77,7 +77,7 @@ rm -rf icon.iconset
 
 ```python
 # 在主窗口初始化时
-self.setWindowIcon(QIcon('icon_256x256.png'))
+self.setWindowIcon(QIcon('icons/icon_256x256.png'))
 ```
 
 或者在打包时通过资源文件指定。
