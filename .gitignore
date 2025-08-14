@@ -224,3 +224,4 @@ dist/
 # Icon generation script
 generate_icon.py# Generated icons
 icons/
+.idea/

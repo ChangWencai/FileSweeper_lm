@@ -41,6 +41,10 @@ class MainWindow(QMainWindow):
 
         # 初始化UI
         self.init_ui()
+        
+        # 应用保存的设置（必须在UI初始化之后调用）
+        self.apply_settings()
+        
         self.init_connections()
 
     def init_ui(self):
@@ -305,10 +309,17 @@ class MainWindow(QMainWindow):
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
 
-    def on_scan_progress(self, progress, message):
+    def on_scan_progress(self, message):
         """扫描进度更新"""
-        self.progress_bar.setValue(progress)
         self.status_label.setText(message)
+        # 如果消息包含进度信息，尝试解析并更新进度条
+        if "扫描完成" in message:
+            self.progress_bar.setValue(100)
+        elif "正在扫描" in message:
+            # 对于正在扫描的消息，保持进度条活动状态
+            current_value = self.progress_bar.value()
+            if current_value < 90:  # 不要达到100%，直到真正完成
+                self.progress_bar.setValue(min(current_value + 1, 90))
 
     def on_scan_finished(self, files):
         """扫描完成时的处理"""
@@ -456,6 +467,13 @@ class MainWindow(QMainWindow):
         # 获取设置值并应用到相关组件
         auto_select = self.settings.get_auto_select_duplicates()
         self.duplicate_table_view.model.set_auto_select_duplicates(auto_select)
+        
+        # 应用扫描过滤设置
+        min_size = self.settings.get_min_file_size()
+        max_size = self.settings.get_max_file_size()
+        file_type = self.settings.get_file_type_filter()
+        custom_ext = self.settings.get_custom_extensions()
+        self.scanner.set_filters(min_size, max_size, file_type, custom_ext)
         
         # 如果已经有扫描结果，重新应用设置
         if self.duplicate_table_view.model.duplicates:

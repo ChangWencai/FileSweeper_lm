@@ -18,8 +18,7 @@ def main():
     # 设置高DPI支持
     QApplication.setHighDpiScaleFactorRoundingPolicy(
         Qt.HighDpiScaleFactorRoundingPolicy.PassThrough)
-    QApplication.setAttribute(Qt.AA_EnableHighDpiScaling)
-    QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps)
+    # Qt.AA_EnableHighDpiScaling 和 Qt.AA_UseHighDpiPixmaps 已弃用，从Qt 6.4开始不再需要
 
     # 创建应用程序实例
     app = QApplication(sys.argv)
