@@ -26,6 +26,8 @@ class DuplicateModel(QAbstractTableModel):
         self.display_items = []  # 显示项目列表 [{type: 'group', hash: ..., text: ...} | {type: 'file', hash: ..., path: ...}]
         self.checked_files = set()  # 选中的文件集合
         self.auto_select_duplicates = True  # 是否默认选中重复文件
+        self.auto_select_strategy = "first"  # 自动选择策略: first(保留第一个), newest(保留最新), folder(保留特定文件夹)
+        self.auto_select_folder = ""         # 特定文件夹路径
 
     def rowCount(self, parent=QModelIndex()):
         """返回行数"""
@@ -170,16 +172,19 @@ class DuplicateModel(QAbstractTableModel):
                 'text': group_text
             })
             
+            # 根据策略确定保留的文件
+            keep_file = self._determine_keep_file(files)
+            
             # 添加文件项
-            for i, file_path in enumerate(files):
+            for file_path in files:
                 self.display_items.append({
                     'type': 'file',
                     'hash': hash_value,
                     'path': file_path
                 })
                 
-                # 根据设置决定是否默认选中重复文件
-                if self.auto_select_duplicates and i > 0:
+                # 根据策略和设置决定是否选中文件（除了保留的文件）
+                if self.auto_select_duplicates and file_path != keep_file:
                     self.checked_files.add(file_path)
         
         self.endResetModel()
@@ -201,6 +206,34 @@ class DuplicateModel(QAbstractTableModel):
     def set_auto_select_duplicates(self, auto_select):
         """设置是否默认选中重复文件"""
         self.auto_select_duplicates = auto_select
+        
+    def set_auto_select_strategy(self, strategy, folder=""):
+        """设置自动选择策略"""
+        self.auto_select_strategy = strategy
+        self.auto_select_folder = folder
+
+    def apply_auto_select_strategy(self):
+        """应用自动选择策略到当前数据"""
+        self.beginResetModel()
+        
+        # 清空当前选中文件
+        self.checked_files.clear()
+        
+        # 为每组重复文件应用策略
+        for hash_value, files in self.duplicates.items():
+            if len(files) <= 1:
+                # 只有一个文件或没有文件，不需要处理
+                continue
+                
+            # 根据策略确定保留的文件
+            keep_file = self._determine_keep_file(files)
+            
+            # 选择除保留文件外的所有文件
+            for file_path in files:
+                if file_path != keep_file:
+                    self.checked_files.add(file_path)
+        
+        self.endResetModel()
 
     def select_all(self):
         """全选所有文件"""
@@ -241,15 +274,57 @@ class DuplicateModel(QAbstractTableModel):
                 if item['path'] not in current_checked:
                     self.checked_files.add(item['path'])
         self.endResetModel()
-        # 修复：不再手动触发dataChanged，beginResetModel/endResetModel会自动处理
 
-    def _format_file_size(self, size):
-        """格式化文件大小"""
-        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
-            if size < 1024.0:
-                if unit == 'B':
-                    return f"{size:.0f} {unit}"
-                else:
-                    return f"{size:.1f} {unit}"
-            size /= 1024.0
-        return f"{size:.1f} PB"
+    def _determine_keep_file(self, files):
+        """根据策略确定保留的文件"""
+        if not files:
+            return None
+                
+        # 如果只有一份文件，直接保留
+        if len(files) == 1:
+            return files[0]
+                
+        # 根据策略选择保留的文件
+        if self.auto_select_strategy == "first":
+            # 保留第一个文件
+            return files[0]
+                
+        elif self.auto_select_strategy == "newest":
+            # 保留最新修改的文件
+            newest_file = files[0]
+            newest_time = 0
+            try:
+                newest_time = os.path.getmtime(files[0])
+            except:
+                pass
+                    
+            for file_path in files[1:]:
+                try:
+                    file_time = os.path.getmtime(file_path)
+                    if file_time > newest_time:
+                        newest_time = file_time
+                        newest_file = file_path
+                except:
+                    continue
+                        
+            return newest_file
+                
+        elif self.auto_select_strategy == "folder" and self.auto_select_folder:
+            # 保留特定文件夹中的文件
+            for file_path in files:
+                try:
+                    if self.auto_select_folder in file_path:
+                        return file_path
+                except:
+                    continue
+            # 如果没有文件在指定文件夹中，回退到保留第一个文件
+            return files[0]
+                
+        else:
+            # 默认保留第一个文件
+            return files[0]
+                
+    def set_auto_select_strategy(self, strategy, folder=""):
+        """设置自动选择策略"""
+        self.auto_select_strategy = strategy
+        self.auto_select_folder = folder

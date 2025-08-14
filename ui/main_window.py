@@ -175,6 +175,15 @@ class MainWindow(QMainWindow):
         toolbar.addWidget(self.select_invert_btn)
 
         toolbar.addSeparator()
+        
+        # 自动选择按钮
+        self.auto_select_btn = QPushButton("自动选择")
+        self.auto_select_btn.clicked.connect(self.auto_select_files)
+        self.auto_select_btn.setEnabled(False)
+        self.auto_select_btn.setToolTip("根据设置的高级自动选择策略来选择文件")
+        toolbar.addWidget(self.auto_select_btn)
+
+        toolbar.addSeparator()
 
         # 删除选中文件按钮
         self.delete_selected_btn = QPushButton("删除选中文件")
@@ -283,6 +292,7 @@ class MainWindow(QMainWindow):
         self.select_all_btn.setEnabled(False)
         self.select_none_btn.setEnabled(False)
         self.select_invert_btn.setEnabled(False)
+        self.auto_select_btn.setEnabled(False)  # 禁用自动选择按钮
 
         # 开始扫描
         self.scanner.start_scan(root_path)
@@ -302,6 +312,28 @@ class MainWindow(QMainWindow):
     def invert_selection(self):
         """反选所有文件"""
         self.duplicate_table_view.invert_selection()
+
+    def auto_select_files(self):
+        """根据高级自动选择策略自动选择文件"""
+        # 获取当前的策略设置
+        strategy = self.settings.get_auto_select_strategy()
+        folder = self.settings.get_auto_select_folder()
+        
+        # 应用策略到当前数据
+        self.duplicate_table_view.model.set_auto_select_strategy(strategy, folder)
+        self.duplicate_table_view.model.apply_auto_select_strategy()
+        
+        # 更新选中文件计数
+        self.on_checked_files_changed()
+        
+        # 更新状态栏信息
+        strategy_names = {
+            "first": "保留每组第一个文件",
+            "newest": "保留每组最新文件",
+            "folder": f"保留{folder}中的文件" if folder else "保留指定文件夹中的文件"
+        }
+        strategy_name = strategy_names.get(strategy, "默认策略")
+        self.status_label.setText(f"已根据策略'{strategy_name}'自动选择文件")
 
     def on_scan_started(self):
         """扫描开始时的处理"""
@@ -354,6 +386,7 @@ class MainWindow(QMainWindow):
         self.start_scan_btn.setEnabled(True)
         self.stop_scan_action.setEnabled(False)
         self.stop_scan_btn.setEnabled(False)
+        self.auto_select_btn.setEnabled(False)  # 禁用自动选择按钮
 
     def find_duplicates(self, files):
         """查找重复文件"""
@@ -388,6 +421,7 @@ class MainWindow(QMainWindow):
         self.select_all_btn.setEnabled(True)
         self.select_none_btn.setEnabled(True)
         self.select_invert_btn.setEnabled(True)
+        self.auto_select_btn.setEnabled(True)  # 启用自动选择按钮
         
         # 更新状态和选中文件计数
         total_groups = len(duplicates)
@@ -402,6 +436,7 @@ class MainWindow(QMainWindow):
         QMessageBox.critical(self, "查找错误", error_message)
         self.status_label.setText("查找重复文件出错")
         self.progress_bar.setVisible(False)
+        self.auto_select_btn.setEnabled(False)  # 禁用自动选择按钮
 
     def on_checked_files_changed(self):
         """选中文件改变时的处理"""
@@ -451,10 +486,15 @@ class MainWindow(QMainWindow):
                 root_path = self.file_tree_view.get_root_path()
                 if root_path:
                     self.scanner.start_scan(root_path)
+                else:
+                    # 如果没有有效的根路径，确保按钮状态正确
+                    self.auto_select_btn.setEnabled(False)
                     
             except Exception as e:
                 QMessageBox.critical(self, "删除错误", f"删除过程中发生错误: {str(e)}")
-
+                # 出错时确保按钮状态正确
+                self.auto_select_btn.setEnabled(bool(self.duplicate_table_view.model.duplicates))
+            
     def show_settings(self):
         """显示设置对话框"""
         # 显示设置对话框
@@ -467,6 +507,11 @@ class MainWindow(QMainWindow):
         # 获取设置值并应用到相关组件
         auto_select = self.settings.get_auto_select_duplicates()
         self.duplicate_table_view.model.set_auto_select_duplicates(auto_select)
+        
+        # 应用高级自动选择策略
+        strategy = self.settings.get_auto_select_strategy()
+        folder = self.settings.get_auto_select_folder()
+        self.duplicate_table_view.model.set_auto_select_strategy(strategy, folder)
         
         # 应用扫描过滤设置
         min_size = self.settings.get_min_file_size()

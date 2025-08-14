@@ -9,7 +9,8 @@ import os
 import json
 from PySide6.QtWidgets import (QDialog, QVBoxLayout, QHBoxLayout, QCheckBox, 
                                QPushButton, QGroupBox, QButtonGroup, QRadioButton,
-                               QLabel, QSpinBox, QFormLayout, QComboBox, QLineEdit, QSizePolicy)
+                               QLabel, QSpinBox, QFormLayout, QComboBox, QLineEdit, QSizePolicy,
+                               QFrame)
 from PySide6.QtCore import Qt, QDir
 
 
@@ -20,7 +21,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setModal(True)
-        self.resize(400, 400)
+        self.resize(450, 500)
         
         # 配置文件路径
         self.config_file = os.path.join(QDir.homePath(), '.filesweeper_config.json')
@@ -32,6 +33,10 @@ class SettingsDialog(QDialog):
         self.max_file_size = 0              # 最大文件大小（KB，0表示无限制）
         self.file_type_filter = "all"       # 文件类型过滤器
         self.custom_extensions = ""         # 自定义扩展名
+        
+        # 高级自动选择策略
+        self.auto_select_strategy = "first"  # 自动选择策略: first(保留第一个), newest(保留最新), folder(保留特定文件夹)
+        self.auto_select_folder = ""         # 特定文件夹路径
         
         self.init_ui()
         self.load_settings()
@@ -47,6 +52,46 @@ class SettingsDialog(QDialog):
         self.auto_select_checkbox = QCheckBox("默认选中重复文件(除每组第一个文件外)")
         self.auto_select_checkbox.setToolTip("开启后，在扫描完成后自动选中除每组第一个文件外的所有重复文件")
         duplicate_layout.addWidget(self.auto_select_checkbox)
+        
+        # 高级自动选择策略
+        strategy_group = QGroupBox("高级自动选择策略")
+        strategy_layout = QVBoxLayout(strategy_group)
+        
+        # 策略选择
+        self.strategy_first_radio = QRadioButton("保留每组第一个文件")
+        self.strategy_newest_radio = QRadioButton("保留每组最新修改的文件")
+        self.strategy_folder_radio = QRadioButton("保留特定文件夹中的文件")
+        
+        self.strategy_group = QButtonGroup()
+        self.strategy_group.addButton(self.strategy_first_radio, 1)
+        self.strategy_group.addButton(self.strategy_newest_radio, 2)
+        self.strategy_group.addButton(self.strategy_folder_radio, 3)
+        
+        strategy_layout.addWidget(self.strategy_first_radio)
+        strategy_layout.addWidget(self.strategy_newest_radio)
+        strategy_layout.addWidget(self.strategy_folder_radio)
+        
+        # 特定文件夹设置
+        folder_layout = QHBoxLayout()
+        folder_layout.addWidget(QLabel("文件夹路径:"))
+        self.folder_line_edit = QLineEdit()
+        self.folder_line_edit.setPlaceholderText("输入文件夹路径，例如: /Users/username/Documents")
+        folder_layout.addWidget(self.folder_line_edit)
+        strategy_layout.addLayout(folder_layout)
+        
+        # 添加分隔线
+        line = QFrame()
+        line.setFrameShape(QFrame.HLine)
+        line.setFrameShadow(QFrame.Sunken)
+        strategy_layout.addWidget(line)
+        
+        # 说明文本
+        strategy_info = QLabel("说明：高级自动选择策略会自动保留符合策略的文件，其他文件将被选中以便删除。")
+        strategy_info.setWordWrap(True)
+        strategy_info.setStyleSheet("color: gray; font-size: 12px;")
+        strategy_layout.addWidget(strategy_info)
+        
+        duplicate_layout.addWidget(strategy_group)
         
         # 删除设置组
         delete_group = QGroupBox("文件删除")
@@ -112,12 +157,19 @@ class SettingsDialog(QDialog):
         self.ok_button.clicked.connect(self.accept)
         self.cancel_button.clicked.connect(self.reject)
         self.file_type_combo.currentIndexChanged.connect(self.on_file_type_changed)
+        self.strategy_group.buttonToggled.connect(self.on_strategy_changed)
         
     def on_file_type_changed(self, index):
         """文件类型选择改变时的处理"""
         file_type = self.file_type_combo.currentData()
         # 只有选择"自定义"时才启用自定义扩展名输入框
         self.custom_extensions_edit.setEnabled(file_type == "custom")
+        
+    def on_strategy_changed(self):
+        """自动选择策略改变时的处理"""
+        # 只有选择"保留特定文件夹中的文件"时才启用文件夹路径输入框
+        is_folder_strategy = self.strategy_folder_radio.isChecked()
+        self.folder_line_edit.setEnabled(is_folder_strategy)
         
     def load_settings(self):
         """加载设置"""
@@ -131,6 +183,8 @@ class SettingsDialog(QDialog):
                     self.max_file_size = config.get('max_file_size', 0)
                     self.file_type_filter = config.get('file_type_filter', 'all')
                     self.custom_extensions = config.get('custom_extensions', '')
+                    self.auto_select_strategy = config.get('auto_select_strategy', 'first')
+                    self.auto_select_folder = config.get('auto_select_folder', '')
             else:
                 # 如果配置文件不存在，使用默认值
                 self.auto_select_duplicates = True
@@ -139,6 +193,8 @@ class SettingsDialog(QDialog):
                 self.max_file_size = 0
                 self.file_type_filter = "all"
                 self.custom_extensions = ""
+                self.auto_select_strategy = "first"
+                self.auto_select_folder = ""
         except Exception as e:
             print(f"加载设置时出错: {e}")
             # 出错时使用默认值
@@ -148,6 +204,8 @@ class SettingsDialog(QDialog):
             self.max_file_size = 0
             self.file_type_filter = "all"
             self.custom_extensions = ""
+            self.auto_select_strategy = "first"
+            self.auto_select_folder = ""
             
         # 更新UI
         self.auto_select_checkbox.setChecked(self.auto_select_duplicates)
@@ -165,6 +223,17 @@ class SettingsDialog(QDialog):
         self.custom_extensions_edit.setText(self.custom_extensions)
         self.custom_extensions_edit.setEnabled(self.file_type_filter == "custom")
         
+        # 设置自动选择策略
+        if self.auto_select_strategy == "first":
+            self.strategy_first_radio.setChecked(True)
+        elif self.auto_select_strategy == "newest":
+            self.strategy_newest_radio.setChecked(True)
+        elif self.auto_select_strategy == "folder":
+            self.strategy_folder_radio.setChecked(True)
+            
+        self.folder_line_edit.setText(self.auto_select_folder)
+        self.folder_line_edit.setEnabled(self.auto_select_strategy == "folder")
+        
     def save_settings(self):
         """保存设置"""
         self.auto_select_duplicates = self.auto_select_checkbox.isChecked()
@@ -174,6 +243,16 @@ class SettingsDialog(QDialog):
         self.file_type_filter = self.file_type_combo.currentData()
         self.custom_extensions = self.custom_extensions_edit.text().strip()
         
+        # 保存自动选择策略
+        if self.strategy_first_radio.isChecked():
+            self.auto_select_strategy = "first"
+        elif self.strategy_newest_radio.isChecked():
+            self.auto_select_strategy = "newest"
+        elif self.strategy_folder_radio.isChecked():
+            self.auto_select_strategy = "folder"
+            
+        self.auto_select_folder = self.folder_line_edit.text().strip()
+        
         # 保存到配置文件
         try:
             config = {
@@ -182,7 +261,9 @@ class SettingsDialog(QDialog):
                 'min_file_size': self.min_file_size,
                 'max_file_size': self.max_file_size,
                 'file_type_filter': self.file_type_filter,
-                'custom_extensions': self.custom_extensions
+                'custom_extensions': self.custom_extensions,
+                'auto_select_strategy': self.auto_select_strategy,
+                'auto_select_folder': self.auto_select_folder
             }
             
             with open(self.config_file, 'w', encoding='utf-8') as f:
@@ -213,6 +294,14 @@ class SettingsDialog(QDialog):
     def get_custom_extensions(self):
         """获取自定义扩展名"""
         return self.custom_extensions
+        
+    def get_auto_select_strategy(self):
+        """获取自动选择策略"""
+        return self.auto_select_strategy
+        
+    def get_auto_select_folder(self):
+        """获取自动选择的特定文件夹"""
+        return self.auto_select_folder
         
     def accept(self):
         """确定按钮点击事件"""
