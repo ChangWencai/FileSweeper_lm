@@ -18,6 +18,9 @@ class DuplicateTableView(QTableView):
     
     # 文件选中状态改变信号
     checked_files_changed = Signal()
+    
+    # 文件被选中信号
+    file_selected = Signal(str)
 
     def __init__(self):
         super().__init__()
@@ -69,10 +72,23 @@ class DuplicateTableView(QTableView):
 
     def init_connections(self):
         """初始化信号连接"""
-        # 连接模型数据改变信号
-        self.model.dataChanged.connect(self.on_model_data_changed)
-        # 连接双击信号
-        self.doubleClicked.connect(self.on_double_clicked)
+        # 连接模型的信号
+        self.model.checked_files_changed.connect(self.checked_files_changed)
+        
+        # 连接选择改变信号
+        self.selectionModel().selectionChanged.connect(self.on_selection_changed)
+        
+    def on_selection_changed(self, selected, deselected):
+        """处理选择改变事件"""
+        # 获取当前选中的索引
+        indexes = self.selectionModel().selectedRows()
+        if indexes:
+            # 获取第一个选中行的数据
+            index = indexes[0]
+            file_info = self.model.get_file_info(index.row())
+            if file_info and file_info['type'] == 'file':
+                # 发送文件选中信号
+                self.file_selected.emit(file_info['path'])
 
     def on_model_data_changed(self, topLeft, bottomRight, roles):
         """模型数据改变时的处理"""
@@ -133,4 +149,8 @@ class DuplicateTableView(QTableView):
         """反选所有文件"""
         self.model.invert_selection()
         self.checked_files_changed.emit()
+
+
+
+
 

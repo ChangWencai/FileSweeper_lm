@@ -6,12 +6,15 @@
 """
 
 import os
-from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QDateTime
+from PySide6.QtCore import QAbstractTableModel, Qt, QModelIndex, QDateTime, Signal
 from PySide6.QtGui import QBrush, QColor
 
 
 class DuplicateModel(QAbstractTableModel):
     """重复文件数据模型类"""
+    
+    # 选中文件改变信号
+    checked_files_changed = Signal()
     
     # 列定义
     CHECK_COLUMN = 0
@@ -103,21 +106,22 @@ class DuplicateModel(QAbstractTableModel):
 
         item = self.display_items[index.row()]
         
-        # 只有文件行可以设置选中状态
-        if item['type'] == 'file' and role == Qt.CheckStateRole and index.column() == self.CHECK_COLUMN:
+        # 只处理文件行的复选框列
+        if item['type'] == 'file' and index.column() == self.CHECK_COLUMN and role == Qt.CheckStateRole:
             file_path = item['path']
-            
-            # 正确处理勾选状态切换
-            # 使用明确的数值比较，避免Qt枚举值比较问题
-            if value == 2:  # Qt.Checked
+            if value == Qt.Checked:
                 self.checked_files.add(file_path)
-            elif value == 0:  # Qt.Unchecked
+            else:
                 self.checked_files.discard(file_path)
             
-            # 修复dataChanged调用，提供有效的索引范围
+            # 发出数据改变信号
             self.dataChanged.emit(index, index, [Qt.CheckStateRole])
+            
+            # 发出选中文件改变信号
+            self.checked_files_changed.emit()
+            
             return True
-
+            
         return False
 
     def flags(self, index):
@@ -234,6 +238,7 @@ class DuplicateModel(QAbstractTableModel):
                     self.checked_files.add(file_path)
         
         self.endResetModel()
+        self.checked_files_changed.emit()
 
     def select_all(self):
         """全选所有文件"""
@@ -243,26 +248,14 @@ class DuplicateModel(QAbstractTableModel):
             if item['type'] == 'file':
                 self.checked_files.add(item['path'])
         self.endResetModel()
-        # 修复：不再手动触发dataChanged，beginResetModel/endResetModel会自动处理
+        self.checked_files_changed.emit()
 
     def deselect_all(self):
         """全不选所有文件"""
         self.beginResetModel()
         self.checked_files.clear()
         self.endResetModel()
-        # 修复：不再手动触发dataChanged，beginResetModel/endResetModel会自动处理
-
-    def select_by_group(self, hash_value, select=True):
-        """按组选择文件"""
-        self.beginResetModel()
-        for item in self.display_items:
-            if item['type'] == 'file' and item['hash'] == hash_value:
-                if select:
-                    self.checked_files.add(item['path'])
-                else:
-                    self.checked_files.discard(item['path'])
-        self.endResetModel()
-        # 修复：不再手动触发dataChanged，beginResetModel/endResetModel会自动处理
+        self.checked_files_changed.emit()
 
     def invert_selection(self):
         """反选所有文件"""
@@ -274,6 +267,7 @@ class DuplicateModel(QAbstractTableModel):
                 if item['path'] not in current_checked:
                     self.checked_files.add(item['path'])
         self.endResetModel()
+        self.checked_files_changed.emit()
 
     def _determine_keep_file(self, files):
         """根据策略确定保留的文件"""

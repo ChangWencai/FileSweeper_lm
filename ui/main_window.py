@@ -12,9 +12,11 @@ from PySide6.QtWidgets import (QMainWindow, QToolBar, QStatusBar, QMenuBar,
                                QWidget, QVBoxLayout, QSplitter, QFileDialog,
                                QMessageBox, QProgressBar, QLabel, QTreeView,
                                QPushButton, QTableView, QHeaderView, QHBoxLayout,
-                               QDialog)
+                               QDialog, QTextEdit, QScrollArea, QSizePolicy)
 from PySide6.QtCore import Qt, QDir, QModelIndex
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtGui import QAction, QIcon, QPixmap, QImage
+from PySide6.QtGui import QDesktopServices
+from PySide6.QtCore import QUrl
 
 from ui.file_tree_view import FileTreeView
 from ui.duplicate_table_view import DuplicateTableView
@@ -218,21 +220,137 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
 
-        # 创建分割器
-        splitter = QSplitter(Qt.Horizontal)
+        # 创建主分割器（水平分割）
+        main_splitter = QSplitter(Qt.Horizontal)
 
         # 左侧：文件夹树状结构
         self.file_tree_view = FileTreeView()
-        splitter.addWidget(self.file_tree_view)
+        main_splitter.addWidget(self.file_tree_view)
 
-        # 右侧：重复文件列表
+        # 中间：重复文件列表
         self.duplicate_table_view = DuplicateTableView()
-        splitter.addWidget(self.duplicate_table_view)
+        main_splitter.addWidget(self.duplicate_table_view)
+
+        # 右侧：预览面板
+        self.create_preview_panel()
+        main_splitter.addWidget(self.preview_panel)
 
         # 设置分割器比例
-        splitter.setSizes([300, 900])
+        main_splitter.setSizes([200, 600, 200])
 
-        layout.addWidget(splitter)
+        layout.addWidget(main_splitter)
+        
+    def create_preview_panel(self):
+        """创建预览面板"""
+        self.preview_panel = QWidget()
+        self.preview_panel.setWindowTitle("文件预览")
+        preview_layout = QVBoxLayout(self.preview_panel)
+        
+        # 预览标题
+        self.preview_title = QLabel("文件预览")
+        self.preview_title.setAlignment(Qt.AlignCenter)
+        self.preview_title.setStyleSheet("font-weight: bold; font-size: 14px; padding: 5px;")
+        preview_layout.addWidget(self.preview_title)
+        
+        # 预览内容区域（图片）
+        self.image_preview = QLabel()
+        self.image_preview.setAlignment(Qt.AlignCenter)
+        self.image_preview.setMinimumSize(150, 200)
+        self.image_preview.setStyleSheet("border: 1px solid gray; background-color: #f0f0f0;")
+        self.image_preview.setScaledContents(False)
+        preview_layout.addWidget(self.image_preview)
+        
+        # 文本预览区域
+        self.text_preview = QTextEdit()
+        self.text_preview.setReadOnly(True)
+        self.text_preview.setMaximumHeight(150)
+        self.text_preview.hide()
+        preview_layout.addWidget(self.text_preview)
+        
+        # 文件信息区域
+        self.file_info = QLabel()
+        self.file_info.setWordWrap(True)
+        self.file_info.setStyleSheet("padding: 5px;")
+        preview_layout.addWidget(self.file_info)
+        
+        # 添加弹簧以使布局更美观
+        preview_layout.addStretch()
+        
+    def preview_file(self, file_path):
+        """预览文件内容"""
+        if not file_path or not os.path.exists(file_path):
+            self.preview_title.setText("文件预览")
+            self.image_preview.show()
+            self.image_preview.setText("文件不存在")
+            self.text_preview.hide()
+            self.file_info.setText("")
+            return
+            
+        # 更新预览标题
+        self.preview_title.setText(f"文件预览: {os.path.basename(file_path)}")
+        
+        # 获取文件信息
+        try:
+            file_size = os.path.getsize(file_path)
+            file_mtime = os.path.getmtime(file_path)
+            from PySide6.QtCore import QDateTime
+            mtime_str = QDateTime.fromSecsSinceEpoch(int(file_mtime)).toString("yyyy-MM-dd hh:mm:ss")
+            
+            info_text = f"路径: {file_path}\n大小: {self.format_file_size(file_size)}\n修改时间: {mtime_str}"
+            self.file_info.setText(info_text)
+        except Exception as e:
+            self.file_info.setText(f"无法获取文件信息: {str(e)}")
+            
+        # 隐藏所有预览控件
+        self.image_preview.hide()
+        self.text_preview.hide()
+            
+        # 根据文件类型进行预览
+        file_ext = os.path.splitext(file_path)[1].lower()
+        
+        # 图片文件预览
+        if file_ext in ['.png', '.jpg', '.jpeg', '.gif', '.bmp', '.ico', '.webp']:
+            self.preview_image(file_path)
+        # 文本文件预览
+        elif file_ext in ['.txt', '.md', '.log', '.py', '.js', '.html', '.css', '.json', '.xml', '.csv', '.yaml', '.yml']:
+            self.preview_text(file_path)
+        # 其他文件类型
+        else:
+            self.image_preview.show()
+            self.image_preview.setText(f"文件类型: {file_ext}\n\n此文件类型不支持预览。\n\n双击文件可在默认应用程序中打开。")
+            
+    def preview_image(self, file_path):
+        """预览图片文件"""
+        try:
+            pixmap = QPixmap(file_path)
+            if pixmap.isNull():
+                self.image_preview.show()
+                self.image_preview.setText("无法加载图片")
+                return
+                
+            # 缩放图片以适应预览区域
+            pixmap = pixmap.scaled(180, 180, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+            
+            self.image_preview.setPixmap(pixmap)
+            self.image_preview.show()
+        except Exception as e:
+            self.image_preview.show()
+            self.image_preview.setText(f"加载图片时出错: {str(e)}")
+            
+    def preview_text(self, file_path):
+        """预览文本文件"""
+        try:
+            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                content = f.read(1000)  # 只读取前1000个字符
+                
+            if len(content) == 1000:
+                content += "\n\n... (内容过长，仅显示前1000个字符)"
+                
+            self.text_preview.setPlainText(content)
+            self.text_preview.show()
+        except Exception as e:
+            self.text_preview.show()
+            self.text_preview.setPlainText(f"读取文本文件时出错: {str(e)}")
 
     def init_connections(self):
         """初始化信号连接"""
@@ -257,6 +375,7 @@ class MainWindow(QMainWindow):
 
         # 连接表格视图信号
         self.duplicate_table_view.checked_files_changed.connect(self.on_checked_files_changed)
+        self.duplicate_table_view.file_selected.connect(self.on_file_selected)
 
     def select_folder(self):
         """选择扫描目录"""
@@ -442,6 +561,21 @@ class MainWindow(QMainWindow):
         """选中文件改变时的处理"""
         checked_files = self.duplicate_table_view.get_checked_files()
         self.selected_count_label.setText(f"选中: {len(checked_files)} 个文件")
+
+    def on_file_selected(self, file_path):
+        """文件被选中时的处理"""
+        self.preview_file(file_path)
+
+    def format_file_size(self, size_bytes):
+        """格式化文件大小"""
+        if size_bytes == 0:
+            return "0 B"
+        size_names = ["B", "KB", "MB", "GB", "TB"]
+        i = 0
+        while size_bytes >= 1024 and i < len(size_names) - 1:
+            size_bytes /= 1024.0
+            i += 1
+        return f"{size_bytes:.1f} {size_names[i]}"
 
     def delete_selected_files(self):
         """删除选中的文件"""
