@@ -813,15 +813,21 @@ PyInstaller 使用 spec 文件来控制打包过程。可以生成并修改 spec
      - 检查其他 Action 是否有更新版本
 
 8. **macOS x64 构建失败（Library not loaded: libintl.8.dylib）**：
-   - 错误信息：`dyld[7576]: Library not loaded: /usr/local/opt/gettext/lib/libintl.8.dylib`
-   - 解决方法：在 GitHub Actions 工作流中添加 gettext 安装步骤：
+   - 错误信息：`dyld[974]: Library not loaded: /usr/local/opt/gettext/lib/libintl.8.dylib`
+   - 解决方法：在 GitHub Actions 工作流中添加 gettext 安装和符号链接创建步骤：
      ```yaml
-     - name: Install system dependencies
+     - name: Install system dependencies for x64
+       if: matrix.architecture == 'x64'
        run: |
+         # Install gettext and create symlinks to fix library loading issues
          brew install gettext
-         brew link --force gettext
+         # Create symlinks for the missing library
+         libintl_prefix=$(brew --prefix gettext)
+         sudo mkdir -p /usr/local/opt/gettext/lib
+         sudo ln -sf "${libintl_prefix}/lib/libintl.8.dylib" /usr/local/opt/gettext/lib/libintl.8.dylib
      ```
-   - 这个问题通常出现在 macOS x64 构建环境中，需要手动安装和链接 gettext 库
+   - 这个问题通常出现在 macOS x64 构建环境中，是因为 Python 安装过程中需要 gettext 库，但系统中缺少正确的库路径链接
+   - 解决方案不仅要安装 gettext，还需要手动创建符号链接以确保库文件在期望的位置可用
 
 9. **Windows构建时PowerShell语法错误**：
    - 错误信息：`ParserError: Missing '(' after 'if' in if statement.`
