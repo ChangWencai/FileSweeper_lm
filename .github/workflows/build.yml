@@ -28,6 +28,13 @@ jobs:
         pip install pyinstaller
     - name: Build with PyInstaller
       run: |
+        # 确保icons目录存在
+        if [ ! -d "icons" ]; then
+          echo "Icons directory not found"
+          exit 1
+        fi
+        
+        # 使用绝对路径确保正确引用
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon.ico --add-data "icons;icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
@@ -49,11 +56,22 @@ jobs:
         architecture: ${{ matrix.architecture }}
     - name: Install dependencies
       run: |
+        # 安装gettext库以解决dlopen错误
+        brew install gettext
+        
+        # 安装Python依赖
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
     - name: Build with PyInstaller
       run: |
+        # 确保icons目录存在
+        if [ ! -d "icons" ]; then
+          echo "Icons directory not found"
+          exit 1
+        fi
+        
+        # 使用绝对路径确保正确引用
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon_256x256.png --add-data "icons:icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Create Universal Binary (Optional)
       if: matrix.architecture == 'arm64'
@@ -63,7 +81,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: FileSweeper-macOS-${{ matrix.architecture }}
-        path: dist/FileSweeper
 
   build-linux:
     runs-on: ubuntu-latest
@@ -79,18 +96,24 @@ jobs:
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install python3-pip
+        sudo apt install python3-pip libgettext-dev -y
         python3 -m pip install --upgrade pip
         pip3 install -r requirements.txt
         pip3 install pyinstaller
     - name: Build with PyInstaller
       run: |
+        # 确保icons目录存在
+        if [ ! -d "icons" ]; then
+          echo "Icons directory not found"
+          exit 1
+        fi
+        
+        # 使用绝对路径确保正确引用
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon_linux_256x256.png --add-data "icons:icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
         name: FileSweeper-Linux-${{ matrix.architecture }}
-        path: dist/FileSweeper
 
   create-release:
     needs: [build-windows, build-macos, build-linux]
