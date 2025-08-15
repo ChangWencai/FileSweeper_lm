@@ -16,28 +16,37 @@ jobs:
         architecture: [x64]
     steps:
     - uses: actions/checkout@v3
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
         architecture: ${{ matrix.architecture }}
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+
     - name: Verify icons directory exists
       run: |
         if (Test-Path "icons") {
-          echo "icons directory found"
+          Write-Host "icons directory found"
         } else {
-          echo "ERROR: icons directory not found"
-          ls
+          Write-Host "ERROR: icons directory not found"
+          Get-ChildItem
           exit 1
         }
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon.ico --add-data "icons;icons" --hidden-import=send2trash --hidden-import=psutil main.py
+        pyinstaller --name FileSweeper `
+          --onefile --windowed `
+          --icon=icons/icon.ico `
+          --add-data "icons;icons" `
+          --hidden-import=send2trash --hidden-import=psutil main.py
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -51,25 +60,28 @@ jobs:
         architecture: [arm64, x64]
     steps:
     - uses: actions/checkout@v3
+
+    # 只在 x64 架构安装 gettext 修复动态库问题
     - name: Install system dependencies for x64
-      if: matrix.architecture == 'x64'
+      if: ${{ matrix.architecture == 'x64' }}
       run: |
-        # Install gettext and create symlinks to fix library loading issues
         brew install gettext
-        # Create symlinks for the missing library
         libintl_prefix=$(brew --prefix gettext)
         sudo mkdir -p /usr/local/opt/gettext/lib
         sudo ln -sf "${libintl_prefix}/lib/libintl.8.dylib" /usr/local/opt/gettext/lib/libintl.8.dylib
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
         architecture: ${{ matrix.architecture }}
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -r requirements.txt
         pip install pyinstaller
+
     - name: Verify icons directory exists
       run: |
         if [ ! -d "icons" ]; then
@@ -77,18 +89,46 @@ jobs:
           ls -la
           exit 1
         fi
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon_256x256.png --add-data "icons:icons" --hidden-import=send2trash --hidden-import=psutil main.py
-    - name: Create Universal Binary (Optional)
-      if: matrix.architecture == 'arm64'
-      run: |
-        echo "Creating universal binary steps here"
-    - name: Upload artifacts
+        pyinstaller --name FileSweeper \
+          --onefile --windowed \
+          --icon=icons/icon_256x256.png \
+          --add-data "icons:icons" \
+          --hidden-import=send2trash --hidden-import=psutil main.py
+
+    - name: Upload per-arch binary
       uses: actions/upload-artifact@v4
       with:
         name: FileSweeper-macOS-${{ matrix.architecture }}
         path: dist/FileSweeper
+
+  merge-macos:
+    needs: build-macos
+    runs-on: macos-latest
+    steps:
+    - uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Merge arm64 and x64 into Universal Binary
+      run: |
+        chmod +x artifacts/FileSweeper-macOS-arm64/FileSweeper
+        chmod +x artifacts/FileSweeper-macOS-x64/FileSweeper
+        lipo -create \
+          artifacts/FileSweeper-macOS-arm64/FileSweeper \
+          artifacts/FileSweeper-macOS-x64/FileSweeper \
+          -output FileSweeper-macOS-universal
+        chmod +x FileSweeper-macOS-universal
+        mkdir -p dist
+        mv FileSweeper-macOS-universal dist/
+
+    - name: Upload Universal Binary
+      uses: actions/upload-artifact@v4
+      with:
+        name: FileSweeper-macOS-universal
+        path: dist/FileSweeper-macOS-universal
 
   build-linux:
     runs-on: ubuntu-latest
@@ -97,17 +137,21 @@ jobs:
         architecture: [x64]
     steps:
     - uses: actions/checkout@v3
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+
     - name: Install dependencies
       run: |
         sudo apt update
-        sudo apt install python3-pip libgettext-dev
+        sudo apt install -y python3-pip libgettext-dev \
+          libxcb-xinerama0 libxkbcommon-x11-0
         python3 -m pip install --upgrade pip
         pip3 install -r requirements.txt
         pip3 install pyinstaller
+
     - name: Verify icons directory exists
       run: |
         if [ ! -d "icons" ]; then
@@ -115,9 +159,15 @@ jobs:
           ls -la
           exit 1
         fi
+
     - name: Build with PyInstaller
       run: |
-        pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon_linux_256x256.png --add-data "icons:icons" --hidden-import=send2trash --hidden-import=psutil main.py
+        pyinstaller --name FileSweeper \
+          --onefile --windowed \
+          --icon=icons/icon_linux_256x256.png \
+          --add-data "icons:icons" \
+          --hidden-import=send2trash --hidden-import=psutil main.py
+
     - name: Upload artifacts
       uses: actions/upload-artifact@v4
       with:
@@ -125,7 +175,7 @@ jobs:
         path: dist/FileSweeper
 
   create-release:
-    needs: [build-windows, build-macos, build-linux]
+    needs: [build-windows, build-linux, merge-macos]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
@@ -133,13 +183,15 @@ jobs:
       uses: actions/download-artifact@v4
       with:
         path: artifacts
+
+    - run: ls -R artifacts  # 调试用，确认路径
+
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         files: |
           artifacts/FileSweeper-Windows-x64/FileSweeper.exe
-          artifacts/FileSweeper-macOS-arm64/FileSweeper
-          artifacts/FileSweeper-macOS-x64/FileSweeper
           artifacts/FileSweeper-Linux-x64/FileSweeper
+          artifacts/FileSweeper-macOS-universal/FileSweeper-macOS-universal
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
