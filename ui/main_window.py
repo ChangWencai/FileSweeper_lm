@@ -12,7 +12,8 @@ from PySide6.QtWidgets import (QMainWindow, QToolBar, QStatusBar, QMenuBar,
                                QWidget, QVBoxLayout, QSplitter, QFileDialog,
                                QMessageBox, QProgressBar, QLabel, QTreeView,
                                QPushButton, QTableView, QHeaderView, QHBoxLayout,
-                               QDialog, QTextEdit, QScrollArea, QSizePolicy)
+                               QDialog, QTextEdit, QScrollArea, QSizePolicy,
+                               QComboBox, QLineEdit, QSpinBox, QToolBar)
 from PySide6.QtCore import Qt, QDir, QModelIndex
 from PySide6.QtGui import QAction, QIcon, QPixmap, QImage
 from PySide6.QtGui import QDesktopServices
@@ -135,10 +136,11 @@ class MainWindow(QMainWindow):
 
     def create_toolbar(self):
         """创建工具栏"""
-        toolbar = self.addToolBar("工具栏")
+        toolbar = QToolBar("主工具栏")
         toolbar.setMovable(False)
+        self.addToolBar(toolbar)
 
-        # 选择文件夹按钮
+        # 选择扫描目录按钮
         self.select_folder_btn = QPushButton("选择扫描目录")
         self.select_folder_btn.clicked.connect(self.select_folder)
         toolbar.addWidget(self.select_folder_btn)
@@ -155,6 +157,18 @@ class MainWindow(QMainWindow):
         self.stop_scan_btn.setEnabled(False)
         self.stop_scan_btn.clicked.connect(self.stop_scan)
         toolbar.addWidget(self.stop_scan_btn)
+
+        toolbar.addSeparator()
+
+        # 查看模式按钮
+        self.view_mode_combo = QComboBox()
+        self.view_mode_combo.addItem("详细信息", "details")
+        self.view_mode_combo.addItem("列表", "list")
+        self.view_mode_combo.addItem("网格", "grid")
+        self.view_mode_combo.setCurrentIndex(0)
+        self.view_mode_combo.currentIndexChanged.connect(self.change_view_mode)
+        toolbar.addWidget(QLabel("查看模式:"))
+        toolbar.addWidget(self.view_mode_combo)
 
         toolbar.addSeparator()
 
@@ -219,6 +233,45 @@ class MainWindow(QMainWindow):
 
         layout = QVBoxLayout(central_widget)
         layout.setContentsMargins(0, 0, 0, 0)
+        
+        # 添加筛选工具栏
+        filter_toolbar = QToolBar("筛选工具栏")
+        filter_toolbar.setStyleSheet("QToolBar { border: 0px; background-color: #f0f0f0; }")
+        
+        # 筛选标签
+        filter_toolbar.addWidget(QLabel("筛选: "))
+        
+        # 文件名筛选
+        self.filter_edit = QLineEdit()
+        self.filter_edit.setPlaceholderText("按文件名筛选...")
+        self.filter_edit.setMaximumWidth(200)
+        self.filter_edit.textChanged.connect(self.apply_filter)
+        filter_toolbar.addWidget(self.filter_edit)
+        
+        # 文件大小筛选
+        filter_toolbar.addWidget(QLabel(" 最小大小: "))
+        self.min_size_filter = QSpinBox()
+        self.min_size_filter.setRange(0, 1000000)
+        self.min_size_filter.setValue(0)
+        self.min_size_filter.setSuffix(" KB")
+        self.min_size_filter.valueChanged.connect(self.apply_filter)
+        filter_toolbar.addWidget(self.min_size_filter)
+        
+        filter_toolbar.addWidget(QLabel(" 最大大小: "))
+        self.max_size_filter = QSpinBox()
+        self.max_size_filter.setRange(0, 1000000)
+        self.max_size_filter.setValue(0)
+        self.max_size_filter.setSuffix(" KB")
+        self.max_size_filter.setSpecialValueText("无限制")
+        self.max_size_filter.valueChanged.connect(self.apply_filter)
+        filter_toolbar.addWidget(self.max_size_filter)
+        
+        # 清除筛选按钮
+        clear_filter_btn = QPushButton("清除筛选")
+        clear_filter_btn.clicked.connect(self.clear_filter)
+        filter_toolbar.addWidget(clear_filter_btn)
+        
+        layout.addWidget(filter_toolbar)
 
         # 创建主分割器（水平分割）
         main_splitter = QSplitter(Qt.Horizontal)
@@ -432,6 +485,11 @@ class MainWindow(QMainWindow):
         """反选所有文件"""
         self.duplicate_table_view.invert_selection()
 
+    def change_view_mode(self, index):
+        """切换查看模式"""
+        mode = self.view_mode_combo.currentData()
+        self.duplicate_table_view.set_view_mode(mode)
+        
     def auto_select_files(self):
         """根据高级自动选择策略自动选择文件"""
         # 获取当前的策略设置
@@ -674,3 +732,19 @@ class MainWindow(QMainWindow):
                           "文件清理工具(FileSweeper) v1.0.0\n\n"
                           "一个帮助您识别和管理重复文件的工具。\n"
                           "支持Windows、macOS和Linux平台。")
+
+    def apply_filter(self):
+        """应用筛选条件"""
+        # 获取筛选条件
+        filter_text = self.filter_edit.text().lower()
+        min_size = self.min_size_filter.value() * 1024  # 转换为字节
+        max_size = self.max_size_filter.value() * 1024  # 转换为字节
+        
+        # 应用筛选到模型
+        self.duplicate_table_view.model.apply_filter(filter_text, min_size, max_size)
+        
+    def clear_filter(self):
+        """清除筛选条件"""
+        self.filter_edit.clear()
+        self.min_size_filter.setValue(0)
+        self.max_size_filter.setValue(0)

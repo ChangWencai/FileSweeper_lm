@@ -31,9 +31,84 @@ class DuplicateModel(QAbstractTableModel):
         self.auto_select_duplicates = True  # 是否默认选中重复文件
         self.auto_select_strategy = "first"  # 自动选择策略: first(保留第一个), newest(保留最新), folder(保留特定文件夹)
         self.auto_select_folder = ""         # 特定文件夹路径
+        self.sort_column = -1  # 当前排序列
+        self.sort_order = Qt.AscendingOrder  # 排序顺序
+        
+        # 筛选条件
+        self.filter_text = ""
+        self.min_size = 0
+        self.max_size = 0
+        self.filtered_items = []  # 筛选后的显示项目列表
+
+    def sort_data(self, column):
+        """根据指定列排序数据"""
+        if column == self.CHECK_COLUMN:
+            return  # 复选框列不排序
+            
+        self.beginResetModel()
+        
+        # 切换排序顺序
+        if self.sort_column == column:
+            self.sort_order = Qt.DescendingOrder if self.sort_order == Qt.AscendingOrder else Qt.AscendingOrder
+        else:
+            self.sort_column = column
+            self.sort_order = Qt.AscendingOrder
+            
+        # 重新构建显示项目列表，按组处理
+        sorted_items = []
+        
+        # 按哈希值分组
+        groups = {}
+        files = {}
+        
+        for item in self.display_items:
+            if item['type'] == 'group':
+                groups[item['hash']] = item
+            else:
+                if item['hash'] not in files:
+                    files[item['hash']] = []
+                files[item['hash']].append(item)
+                
+        # 对每组文件进行排序
+        for hash_value, group_files in files.items():
+            # 对组内文件排序
+            sorted_files = sorted(group_files, key=lambda x: self._get_sort_key(x, column), reverse=(self.sort_order == Qt.DescendingOrder))
+            
+            # 添加组标题
+            sorted_items.append(groups[hash_value])
+            
+            # 添加排序后的文件
+            sorted_items.extend(sorted_files)
+            
+        self.display_items = sorted_items
+        self.endResetModel()
+        
+    def _get_sort_key(self, item, column):
+        """获取用于排序的键值"""
+        if item['type'] != 'file':
+            return ""
+            
+        file_path = item['path']
+        
+        if column == self.PATH_COLUMN:
+            return file_path.lower()
+        elif column == self.SIZE_COLUMN:
+            try:
+                return os.path.getsize(file_path)
+            except:
+                return 0
+        elif column == self.MODIFIED_COLUMN:
+            try:
+                return os.path.getmtime(file_path)
+            except:
+                return 0
+        else:
+            return ""
 
     def rowCount(self, parent=QModelIndex()):
         """返回行数"""
+        if self.filter_text or self.min_size > 0 or self.max_size < float('inf'):
+            return len(self.filtered_items)
         return len(self.display_items)
 
     def columnCount(self, parent=QModelIndex()):
@@ -42,10 +117,15 @@ class DuplicateModel(QAbstractTableModel):
 
     def data(self, index, role=Qt.DisplayRole):
         """返回数据"""
-        if not index.isValid() or index.row() >= len(self.display_items):
+        if self.filter_text or self.min_size > 0 or self.max_size < float('inf'):
+            items = self.filtered_items
+        else:
+            items = self.display_items
+            
+        if not index.isValid() or index.row() >= len(items):
             return None
 
-        item = self.display_items[index.row()]
+        item = items[index.row()]
 
         # 组标题行
         if item['type'] == 'group':
@@ -65,32 +145,30 @@ class DuplicateModel(QAbstractTableModel):
 
         # 文件行
         elif item['type'] == 'file':
-            file_path = item['path']
-            
             if index.column() == self.CHECK_COLUMN:
+                # 复选框列
                 if role == Qt.CheckStateRole:
-                    return Qt.Checked if file_path in self.checked_files else Qt.Unchecked
-                elif role == Qt.BackgroundRole:
-                    # 为不同的重复组设置不同颜色背景
-                    hue = (hash(item['hash']) % 360)
-                    color = QColor.fromHsv(hue, 20, 255, 128)
-                    return QBrush(color)
-                    
-            elif role == Qt.DisplayRole:
-                if index.column() == self.PATH_COLUMN:
-                    return file_path
-                elif index.column() == self.SIZE_COLUMN:
-                    try:
-                        size = os.path.getsize(file_path)
-                        return self._format_file_size(size)
-                    except:
-                        return "未知"
-                elif index.column() == self.MODIFIED_COLUMN:
-                    try:
-                        mtime = os.path.getmtime(file_path)
-                        return QDateTime.fromSecsSinceEpoch(int(mtime)).toString("yyyy-MM-dd hh:mm:ss")
-                    except:
-                        return "未知"
+                    return Qt.Checked if item['path'] in self.checked_files else Qt.Unchecked
+                elif role == Qt.BackgroundRole and item['path'] in self.checked_files:
+                    # 为选中的文件添加背景色
+                    return QBrush(QColor(255, 200, 200, 100))  # 浅红色背景
+            elif index.column() == self.PATH_COLUMN and role == Qt.DisplayRole:
+                # 文件路径列
+                return item['path']
+            elif index.column() == self.SIZE_COLUMN and role == Qt.DisplayRole:
+                # 文件大小列
+                try:
+                    size = os.path.getsize(item['path'])
+                    return self._format_file_size(size)
+                except:
+                    return "未知"
+            elif index.column() == self.MODIFIED_COLUMN and role == Qt.DisplayRole:
+                # 修改时间列
+                try:
+                    mtime = os.path.getmtime(item['path'])
+                    return QDateTime.fromSecsSinceEpoch(int(mtime)).toString("yyyy-MM-dd hh:mm:ss")
+                except:
+                    return "未知"
 
             elif role == Qt.TextAlignmentRole:
                 if index.column() == self.SIZE_COLUMN:
@@ -126,14 +204,21 @@ class DuplicateModel(QAbstractTableModel):
 
     def flags(self, index):
         """返回项目标志"""
-        if not index.isValid() or index.row() >= len(self.display_items):
+        if self.filter_text or self.min_size > 0 or self.max_size < float('inf'):
+            items = self.filtered_items
+        else:
+            items = self.display_items
+            
+        if not index.isValid() or index.row() >= len(items):
             return Qt.NoItemFlags
 
-        item = self.display_items[index.row()]
-        
-        # 组标题行不可选择和编辑
+        item = items[index.row()]
+
+        # 组标题行
         if item['type'] == 'group':
-            return Qt.ItemIsEnabled
+            if index.column() == self.PATH_COLUMN:
+                return Qt.ItemIsEnabled
+            return Qt.NoItemFlags
             
         # 文件行
         elif item['type'] == 'file':
@@ -179,9 +264,10 @@ class DuplicateModel(QAbstractTableModel):
             # 根据策略确定保留的文件
             keep_file = self._determine_keep_file(files)
             
-            # 添加文件项
+            # 先收集所有文件项，避免在循环中频繁操作checked_files集合
+            files_items = []
             for file_path in files:
-                self.display_items.append({
+                files_items.append({
                     'type': 'file',
                     'hash': hash_value,
                     'path': file_path
@@ -190,13 +276,24 @@ class DuplicateModel(QAbstractTableModel):
                 # 根据策略和设置决定是否选中文件（除了保留的文件）
                 if self.auto_select_duplicates and file_path != keep_file:
                     self.checked_files.add(file_path)
+                    
+            # 批量添加文件项
+            self.display_items.extend(files_items)
+        
+        # 应用当前筛选条件
+        self.apply_filter(self.filter_text, self.min_size, self.max_size if self.max_size < float('inf') else 0)
         
         self.endResetModel()
 
     def get_file_info(self, row):
         """获取指定行的文件信息"""
-        if 0 <= row < len(self.display_items):
-            return self.display_items[row]
+        if self.filter_text or self.min_size > 0 or self.max_size < float('inf'):
+            items = self.filtered_items
+        else:
+            items = self.display_items
+            
+        if 0 <= row < len(items):
+            return items[row]
         return None
 
     def get_duplicate_groups(self):
@@ -317,8 +414,54 @@ class DuplicateModel(QAbstractTableModel):
         else:
             # 默认保留第一个文件
             return files[0]
-                
-    def set_auto_select_strategy(self, strategy, folder=""):
-        """设置自动选择策略"""
-        self.auto_select_strategy = strategy
-        self.auto_select_folder = folder
+
+    def apply_filter(self, filter_text="", min_size=0, max_size=0):
+        """应用筛选条件"""
+        self.filter_text = filter_text.lower()
+        self.min_size = min_size
+        # 处理最大大小为0的情况（表示无限制）
+        if max_size <= 0:
+            self.max_size = float('inf')
+        else:
+            self.max_size = max_size
+        
+        # 重新构建筛选后的显示项目列表
+        self.filtered_items = []
+        
+        # 应用筛选
+        for item in self.display_items:
+            if item['type'] == 'group':
+                # 组标题总是显示
+                self.filtered_items.append(item)
+            else:
+                # 筛选文件
+                if self._matches_filter(item):
+                    self.filtered_items.append(item)
+        
+        # 注意：这里不调用beginResetModel/endResetModel，因为这个方法是在update_data中调用的
+
+    def _matches_filter(self, item):
+        """检查文件是否匹配筛选条件"""
+        file_path = item['path']
+        try:
+            file_size = os.path.getsize(file_path)
+        except:
+            file_size = 0
+        
+        # 检查文件路径是否包含筛选文本
+        if self.filter_text and self.filter_text not in file_path.lower():
+            return False
+        
+        # 检查文件大小是否在范围内
+        if file_size < self.min_size or file_size > self.max_size:
+            return False
+        
+        return True
+
+    def _format_file_size(self, size):
+        """格式化文件大小"""
+        for unit in ['B', 'KB', 'MB', 'GB', 'TB']:
+            if size < 1024:
+                return f"{size:.2f} {unit}"
+            size /= 1024
+        return f"{size:.2f} PB"

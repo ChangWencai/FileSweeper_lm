@@ -6,10 +6,10 @@
 """
 
 import os
-from PySide6.QtWidgets import QTableView, QAbstractItemView, QHeaderView
-from PySide6.QtCore import Qt, QModelIndex, Signal
-from PySide6.QtGui import QDesktopServices
-from PySide6.QtCore import QUrl
+from PySide6.QtWidgets import (QTableView, QAbstractItemView, QHeaderView, 
+                               QMenu, QMessageBox)
+from PySide6.QtGui import QAction, QDesktopServices, QContextMenuEvent
+from PySide6.QtCore import Qt, QModelIndex, Signal, QUrl
 from ui.duplicate_model import DuplicateModel
 
 
@@ -27,6 +27,9 @@ class DuplicateTableView(QTableView):
         self.model = DuplicateModel()
         self.init_ui()
         self.init_connections()
+        
+        # 查看模式
+        self.view_mode = "details"  # details, list, grid
 
     def init_ui(self):
         """初始化UI"""
@@ -41,14 +44,14 @@ class DuplicateTableView(QTableView):
         self.setEditTriggers(QAbstractItemView.NoEditTriggers)
 
         # 设置排序
-        self.setSortingEnabled(False)  # 分组显示时禁用排序
+        self.setSortingEnabled(True)
 
         # 设置网格线
         self.setShowGrid(True)
 
         # 设置交替行颜色
         self.setAlternatingRowColors(True)
-
+        
         # 设置水平表头
         if self.horizontalHeader():
             self.horizontalHeader().setStretchLastSection(True)
@@ -56,6 +59,8 @@ class DuplicateTableView(QTableView):
             # 设置选择列的大小
             self.horizontalHeader().setSectionResizeMode(self.model.CHECK_COLUMN, QHeaderView.Fixed)
             self.setColumnWidth(self.model.CHECK_COLUMN, 60)
+            # 连接表头点击信号用于排序
+            self.horizontalHeader().sectionClicked.connect(self.on_header_clicked)
 
         # 设置垂直表头
         if self.verticalHeader():
@@ -90,32 +95,84 @@ class DuplicateTableView(QTableView):
                 # 发送文件选中信号
                 self.file_selected.emit(file_info['path'])
 
-    def on_model_data_changed(self, topLeft, bottomRight, roles):
-        """模型数据改变时的处理"""
-        if Qt.CheckStateRole in roles:
-            self.checked_files_changed.emit()
-
-    def on_double_clicked(self, index):
-        """双击文件时的处理"""
-        if not index.isValid():
-            return
+    def on_header_clicked(self, logical_index):
+        """处理表头点击事件用于排序"""
+        if logical_index == self.model.CHECK_COLUMN:
+            return  # 复选框列不排序
             
-        # 获取文件信息
-        item = self.model.get_file_info(index.row())
+        # 实现排序逻辑
+        self.model.sort_data(logical_index)
         
-        # 只处理文件行，不处理组标题行
-        if item and item['type'] == 'file':
-            file_path = item['path']
+    def contextMenuEvent(self, event: QContextMenuEvent):
+        """右键菜单事件"""
+        menu = QMenu(self)
+        
+        # 获取选中的行
+        selected_rows = self.selectionModel().selectedRows()
+        
+        if selected_rows:
+            # 获取第一个选中行的数据
+            index = selected_rows[0]
+            file_info = self.model.get_file_info(index.row())
             
-            # 检查文件是否存在
-            if os.path.exists(file_path):
-                # 使用系统默认应用打开文件
-                url = QUrl.fromLocalFile(file_path)
-                QDesktopServices.openUrl(url)
-            else:
-                # 文件不存在时提示用户
-                from PySide6.QtWidgets import QMessageBox
-                QMessageBox.warning(self, "文件不存在", f"文件不存在或已被删除:\n{file_path}")
+            if file_info and file_info['type'] == 'file':
+                # 文件操作菜单项
+                open_action = QAction("打开文件", self)
+                open_action.triggered.connect(lambda: self.open_file(file_info['path']))
+                menu.addAction(open_action)
+                
+                open_folder_action = QAction("在文件夹中显示", self)
+                open_folder_action.triggered.connect(lambda: self.open_file_folder(file_info['path']))
+                menu.addAction(open_folder_action)
+                
+                menu.addSeparator()
+                
+                # 文件选择操作
+                select_all_action = QAction("全选", self)
+                select_all_action.triggered.connect(self.select_all)
+                menu.addAction(select_all_action)
+                
+                select_none_action = QAction("全不选", self)
+                select_none_action.triggered.connect(self.deselect_all)
+                menu.addAction(select_none_action)
+                
+                invert_selection_action = QAction("反选", self)
+                invert_selection_action.triggered.connect(self.invert_selection)
+                menu.addAction(invert_selection_action)
+                
+                menu.addSeparator()
+                
+                # 删除操作
+                delete_action = QAction("删除选中文件", self)
+                delete_action.triggered.connect(self.request_delete_selected)
+                menu.addAction(delete_action)
+        else:
+            # 没有选中行时的菜单项
+            select_all_action = QAction("全选", self)
+            select_all_action.triggered.connect(self.select_all)
+            menu.addAction(select_all_action)
+            
+        menu.exec(event.globalPos())
+        
+    def open_file(self, file_path):
+        """打开文件"""
+        try:
+            QDesktopServices.openUrl(QUrl.fromLocalFile(file_path))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"无法打开文件: {str(e)}")
+            
+    def open_file_folder(self, file_path):
+        """在文件夹中显示文件"""
+        try:
+            folder_path = os.path.dirname(file_path)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(folder_path))
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"无法打开文件夹: {str(e)}")
+            
+    def request_delete_selected(self):
+        """请求删除选中文件"""
+        # 发送信号让主窗口处理删除操作
+        self.checked_files_changed.emit()
 
     def update_data(self, duplicates):
         """更新表格数据"""
@@ -138,17 +195,41 @@ class DuplicateTableView(QTableView):
     def select_all(self):
         """全选所有文件"""
         self.model.select_all()
-        self.checked_files_changed.emit()
-
+        
     def deselect_all(self):
         """全不选所有文件"""
         self.model.deselect_all()
-        self.checked_files_changed.emit()
-
+        
     def invert_selection(self):
         """反选所有文件"""
         self.model.invert_selection()
-        self.checked_files_changed.emit()
+        
+    def set_view_mode(self, mode):
+        """设置查看模式"""
+        self.view_mode = mode
+        # 根据模式调整界面显示
+        if mode == "details":
+            self.set_view_details()
+        elif mode == "list":
+            self.set_view_list()
+        elif mode == "grid":
+            self.set_view_grid()
+            
+    def set_view_details(self):
+        """设置详细信息视图"""
+        self.setShowGrid(True)
+        self.setAlternatingRowColors(True)
+        
+    def set_view_list(self):
+        """设置列表视图"""
+        self.setShowGrid(False)
+        self.setAlternatingRowColors(True)
+        
+    def set_view_grid(self):
+        """设置网格视图"""
+        self.setShowGrid(False)
+        self.setAlternatingRowColors(False)
+        # 网格视图下可以调整图标大小等
 
 
 
