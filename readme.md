@@ -261,10 +261,21 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - GUI主线程负责界面响应
 - 文件扫描、哈希计算放到QThread或concurrent.futures.ThreadPoolExecutor
 - 避免在UI线程直接执行os.walk()和哈希计算，防止界面卡死
+- 根据文件数量和系统资源自动选择最优的并行处理策略
 
 #### 9.1.3 哈希计算优化
 - 分两步处理：先比较文件大小→相同大小才计算哈希（MD5/SHA256）
 - 大文件先计算前几MB哈希（快速比较），再做全文件哈希（确认）
+- 根据文件大小自动选择最优的哈希计算方法：
+  - 小文件：一次性读取
+  - 中等文件：分块读取
+  - 大文件：内存映射（mmap）
+- 使用智能缓存机制避免重复计算相同文件的哈希值
+
+#### 9.1.4 自适应处理策略
+- 根据系统CPU核心数、内存大小自动调整并行处理参数
+- 根据文件大小和数量选择最优的处理方式
+- 实时监控系统资源使用情况，避免过度占用系统资源
 
 ### 9.2 跨平台兼容性
 
@@ -282,7 +293,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - Windows有时需要管理员权限（UAC提升）
 - 应用程序会自动检测权限问题并提示用户授予权限
 
-#### 9.3 PySide6开发注意事项
+### 9.3 PySide6开发注意事项
 
 #### 9.3.1 信号槽
 - PySide6的信号自动类型推断较好，但要注意循环引用问题
