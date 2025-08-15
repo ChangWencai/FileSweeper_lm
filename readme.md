@@ -35,6 +35,8 @@ FileSweeper is a cross-platform desktop application built with Python and PySide
    python main.py
    ```
 
+For detailed installation instructions, please refer to the [User Manual](USER_MANUAL.md).
+
 ## Usage
 
 1. Select a directory to scan for duplicate files
@@ -42,6 +44,12 @@ FileSweeper is a cross-platform desktop application built with Python and PySide
 3. Review the detected duplicate files organized in groups
 4. Select files you want to delete (by default, the first file in each group is not selected)
 5. Click "Delete Selected" to move selected files to the recycle bin
+
+For comprehensive usage instructions, please refer to the [User Manual](USER_MANUAL.md).
+
+## Building and Distribution
+
+For information on how to build executable files for distribution, please refer to the [Building Guide](BUILDING.md).
 
 ## Configuration
 
@@ -319,7 +327,15 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 - 使用py2app或PyInstaller打包.app
 - 记得进行签名和公证（macOS 10.15+需要）
 
-#### 9.4.3 打包优化
+#### 9.4.3 Linux打包
+- 使用PyInstaller打包可执行文件
+- 可创建AppImage或deb包以便分发
+
+#### 9.4.4 跨平台打包
+- 使用GitHub Actions自动为不同平台和架构创建构建
+- 详情请参阅[BUILDING.md](BUILDING.md)中的跨平台打包部分
+
+#### 9.4.5 打包优化
 - PySide6程序打包后体积较大（50-100MB），可使用--onefile或UPX压缩
 - 确保.qss（样式表）、图标等资源被正确打包
 
