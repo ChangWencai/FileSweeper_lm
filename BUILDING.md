@@ -812,6 +812,42 @@ PyInstaller 使用 spec 文件来控制打包过程。可以生成并修改 spec
      - `actions/download-artifact@v3` → `actions/download-artifact@v4`
      - 检查其他 Action 是否有更新版本
 
+8. **macOS x64 构建失败（Library not loaded: libintl.8.dylib）**：
+   - 错误信息：`dyld[7576]: Library not loaded: /usr/local/opt/gettext/lib/libintl.8.dylib`
+   - 解决方法：在 GitHub Actions 工作流中添加 gettext 安装步骤：
+     ```yaml
+     - name: Install system dependencies
+       run: |
+         brew install gettext
+         brew link --force gettext
+     ```
+   - 这个问题通常出现在 macOS x64 构建环境中，需要手动安装和链接 gettext 库
+
+9. **Windows构建时PowerShell语法错误**：
+   - 错误信息：`ParserError: Missing '(' after 'if' in if statement.`
+   - 解决方法：在 Windows 环境中使用 PowerShell 语法而不是 Bash 语法：
+     ```yaml
+     # 错误的Bash语法 (在Windows上会失败)
+     if [ ! -d "icons" ]; then
+       
+     # 正确的PowerShell语法 (在Windows上使用)
+     if (Test-Path "icons") {
+     ```
+   - 不同的操作系统使用不同的 shell，需要相应地调整脚本语法
+
+10. **Linux构建时找不到icons目录**：
+   - 错误信息：`Unable to find '...' when adding binary and data files.`
+   - 解决方法：在构建前验证icons目录是否存在：
+     ```bash
+     - name: Verify icons directory exists
+       run: |
+         if [ ! -d "icons" ]; then
+           echo "ERROR: icons directory not found"
+           ls -la
+           exit 1
+         fi
+     ```
+
 ### 平台特定问题
 
 1. **Windows**：
