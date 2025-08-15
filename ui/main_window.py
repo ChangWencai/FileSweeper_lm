@@ -39,6 +39,9 @@ class MainWindow(QMainWindow):
         self.scanner = FileScanner()
         self.duplicate_finder = DuplicateFinder()
         
+        # 设置扫描器的父窗口引用
+        self.scanner.set_parent_window(self)
+        
         # 初始化设置
         self.settings = SettingsDialog(self)
 

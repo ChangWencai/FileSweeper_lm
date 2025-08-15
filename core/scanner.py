@@ -7,6 +7,7 @@
 
 import os
 import threading
+import platform
 from PySide6.QtCore import QObject, Signal, QDir
 
 
@@ -33,6 +34,11 @@ class FileScanner(QObject):
         self.file_type_filter = "all"  # 文件类型过滤器
         self.custom_extensions = ""    # 自定义扩展名
         self.scan_thread = None        # 扫描线程引用
+        self.parent_window = None      # 父窗口引用，用于权限请求对话框
+        
+    def set_parent_window(self, parent_window):
+        """设置父窗口引用"""
+        self.parent_window = parent_window
         
     def set_filters(self, min_size, max_size, file_type, custom_ext):
         """设置文件过滤器"""
@@ -43,11 +49,61 @@ class FileScanner(QObject):
         
     def start_scan(self, path):
         """开始扫描"""
-        self.cancelled = False
-        # 在新线程中执行扫描
-        self.scan_thread = threading.Thread(target=self._scan_directory, args=(path,))
-        self.scan_thread.daemon = True
-        self.scan_thread.start()
+        try:
+            # 检查权限
+            if not self._check_permissions(path):
+                return
+                
+            self.cancelled = False
+            # 在新线程中执行扫描
+            self.scan_thread = threading.Thread(target=self._scan_directory, args=(path,))
+            self.scan_thread.daemon = True
+            self.scan_thread.start()
+        except Exception as e:
+            self.scan_error.emit(f"启动扫描时出错: {str(e)}")
+        
+    def _check_permissions(self, path):
+        """
+        检查路径访问权限
+        
+        Args:
+            path (str): 要检查权限的路径
+            
+        Returns:
+            bool: 是否有权限访问路径
+        """
+        try:
+            from core.permission_handler import PermissionHandler
+            
+            # 检查权限
+            has_permission = PermissionHandler.check_and_request_permissions(path)
+            
+            if not has_permission:
+                system = platform.system()
+                
+                if system == "Darwin":  # macOS
+                    # 请求完全磁盘访问权限
+                    PermissionHandler.request_macos_full_disk_access(self.parent_window)
+                    self.scan_error.emit("需要完全磁盘访问权限，请在系统偏好设置中授予权限后重新扫描")
+                    return False
+                elif system == "Windows":  # Windows
+                    # 请求管理员权限
+                    if not PermissionHandler._is_admin():
+                        granted = PermissionHandler.request_windows_admin_privileges(self.parent_window)
+                        if not granted:
+                            self.scan_error.emit("需要管理员权限，请以管理员身份重新启动应用程序")
+                            return False
+                    else:
+                        self.scan_error.emit("没有足够的权限访问某些文件或目录")
+                        return False
+                else:
+                    self.scan_error.emit("没有足够的权限访问某些文件或目录")
+                    return False
+                    
+            return True
+        except Exception as e:
+            self.scan_error.emit(f"权限检查失败: {str(e)}")
+            return False
         
     def stop_scan(self):
         """停止扫描"""

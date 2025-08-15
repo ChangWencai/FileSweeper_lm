@@ -280,8 +280,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 #### 9.2.4 权限问题
 - macOS 10.15+访问"桌面/文档/下载"等需要用户授权
 - Windows有时需要管理员权限（UAC提升）
+- 应用程序会自动检测权限问题并提示用户授予权限
 
-### 9.3 PySide6开发注意事项
+#### 9.3 PySide6开发注意事项
 
 #### 9.3.1 信号槽
 - PySide6的信号自动类型推断较好，但要注意循环引用问题
