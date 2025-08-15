@@ -654,6 +654,16 @@ class MainWindow(QMainWindow):
         custom_ext = self.settings.get_custom_extensions()
         self.scanner.set_filters(min_size, max_size, file_type, custom_ext)
         
+        # 应用大文件优化设置到重复文件查找器
+        fast_scan_mode = self.settings.get_fast_scan_mode()
+        fast_scan_size = self.settings.get_fast_scan_size()
+        use_multiprocessing = self.settings.get_use_multiprocessing()
+        use_mmap = self.settings.get_use_mmap()
+        cache_hashes = self.settings.get_cache_hashes()
+        
+        self.duplicate_finder.set_optimization_settings(
+            fast_scan_mode, fast_scan_size, use_multiprocessing, use_mmap, cache_hashes)
+        
         # 如果已经有扫描结果，重新应用设置
         if self.duplicate_table_view.model.duplicates:
             self.duplicate_table_view.model.update_data(self.duplicate_table_view.model.duplicates)

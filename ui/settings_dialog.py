@@ -21,7 +21,7 @@ class SettingsDialog(QDialog):
         super().__init__(parent)
         self.setWindowTitle("设置")
         self.setModal(True)
-        self.resize(450, 500)
+        self.resize(450, 550)
         
         # 配置文件路径
         self.config_file = os.path.join(QDir.homePath(), '.filesweeper_config.json')
@@ -37,6 +37,13 @@ class SettingsDialog(QDialog):
         # 高级自动选择策略
         self.auto_select_strategy = "first"  # 自动选择策略: first(保留第一个), newest(保留最新), folder(保留特定文件夹)
         self.auto_select_folder = ""         # 特定文件夹路径
+        
+        # 大文件优化设置
+        self.fast_scan_mode = False         # 快速扫描模式
+        self.fast_scan_size = 4             # 快速扫描大小（MB）
+        self.use_multiprocessing = False    # 使用多进程
+        self.use_mmap = True                # 使用内存映射
+        self.cache_hashes = True            # 缓存哈希值
         
         self.init_ui()
         self.load_settings()
@@ -93,6 +100,55 @@ class SettingsDialog(QDialog):
         
         duplicate_layout.addWidget(strategy_group)
         
+        # 大文件优化设置组
+        optimization_group = QGroupBox("大文件优化")
+        optimization_layout = QVBoxLayout(optimization_group)
+        
+        # 快速扫描模式
+        self.fast_scan_checkbox = QCheckBox("启用快速扫描模式")
+        self.fast_scan_checkbox.setToolTip("只计算文件前部分数据的哈希值，提高大文件扫描速度")
+        optimization_layout.addWidget(self.fast_scan_checkbox)
+        
+        # 快速扫描大小设置
+        fast_scan_layout = QHBoxLayout()
+        fast_scan_layout.addWidget(QLabel("快速扫描大小:"))
+        self.fast_scan_combo = QComboBox()
+        self.fast_scan_combo.addItem("4 MB", 4)
+        self.fast_scan_combo.addItem("8 MB", 8)
+        self.fast_scan_combo.addItem("16 MB", 16)
+        self.fast_scan_combo.addItem("32 MB", 32)
+        fast_scan_layout.addWidget(self.fast_scan_combo)
+        fast_scan_layout.addWidget(QLabel("MB"))
+        fast_scan_layout.addStretch()
+        optimization_layout.addLayout(fast_scan_layout)
+        
+        # 多进程处理
+        self.multiprocessing_checkbox = QCheckBox("使用多进程加速")
+        self.multiprocessing_checkbox.setToolTip("使用多进程并行计算哈希值，适合SSD和多核CPU")
+        optimization_layout.addWidget(self.multiprocessing_checkbox)
+        
+        # 内存映射
+        self.mmap_checkbox = QCheckBox("使用内存映射读取")
+        self.mmap_checkbox.setToolTip("对大文件使用内存映射读取，减少数据拷贝")
+        optimization_layout.addWidget(self.mmap_checkbox)
+        
+        # 哈希缓存
+        self.cache_checkbox = QCheckBox("缓存文件哈希值")
+        self.cache_checkbox.setToolTip("缓存已计算的文件哈希值，提高重复扫描速度")
+        optimization_layout.addWidget(self.cache_checkbox)
+        
+        # 添加分隔线
+        line2 = QFrame()
+        line2.setFrameShape(QFrame.HLine)
+        line2.setFrameShadow(QFrame.Sunken)
+        optimization_layout.addWidget(line2)
+        
+        # 说明文本
+        optimization_info = QLabel("说明：这些优化选项可以提高大文件的扫描速度，但可能略微降低准确性。")
+        optimization_info.setWordWrap(True)
+        optimization_info.setStyleSheet("color: gray; font-size: 12px;")
+        optimization_layout.addWidget(optimization_info)
+        
         # 删除设置组
         delete_group = QGroupBox("文件删除")
         delete_layout = QVBoxLayout(delete_group)
@@ -138,6 +194,7 @@ class SettingsDialog(QDialog):
         
         # 添加到主布局
         layout.addWidget(duplicate_group)
+        layout.addWidget(optimization_group)
         layout.addWidget(delete_group)
         layout.addWidget(filter_group)
         
@@ -158,6 +215,7 @@ class SettingsDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
         self.file_type_combo.currentIndexChanged.connect(self.on_file_type_changed)
         self.strategy_group.buttonToggled.connect(self.on_strategy_changed)
+        self.fast_scan_checkbox.toggled.connect(self.on_fast_scan_toggled)
         
     def on_file_type_changed(self, index):
         """文件类型选择改变时的处理"""
@@ -170,6 +228,10 @@ class SettingsDialog(QDialog):
         # 只有选择"保留特定文件夹中的文件"时才启用文件夹路径输入框
         is_folder_strategy = self.strategy_folder_radio.isChecked()
         self.folder_line_edit.setEnabled(is_folder_strategy)
+        
+    def on_fast_scan_toggled(self, checked):
+        """快速扫描模式切换时的处理"""
+        self.fast_scan_combo.setEnabled(checked)
         
     def load_settings(self):
         """加载设置"""
@@ -185,6 +247,12 @@ class SettingsDialog(QDialog):
                     self.custom_extensions = config.get('custom_extensions', '')
                     self.auto_select_strategy = config.get('auto_select_strategy', 'first')
                     self.auto_select_folder = config.get('auto_select_folder', '')
+                    # 大文件优化设置
+                    self.fast_scan_mode = config.get('fast_scan_mode', False)
+                    self.fast_scan_size = config.get('fast_scan_size', 4)
+                    self.use_multiprocessing = config.get('use_multiprocessing', False)
+                    self.use_mmap = config.get('use_mmap', True)
+                    self.cache_hashes = config.get('cache_hashes', True)
             else:
                 # 如果配置文件不存在，使用默认值
                 self.auto_select_duplicates = True
@@ -195,6 +263,12 @@ class SettingsDialog(QDialog):
                 self.custom_extensions = ""
                 self.auto_select_strategy = "first"
                 self.auto_select_folder = ""
+                # 大文件优化设置
+                self.fast_scan_mode = False
+                self.fast_scan_size = 4
+                self.use_multiprocessing = False
+                self.use_mmap = True
+                self.cache_hashes = True
         except Exception as e:
             print(f"加载设置时出错: {e}")
             # 出错时使用默认值
@@ -206,6 +280,12 @@ class SettingsDialog(QDialog):
             self.custom_extensions = ""
             self.auto_select_strategy = "first"
             self.auto_select_folder = ""
+            # 大文件优化设置
+            self.fast_scan_mode = False
+            self.fast_scan_size = 4
+            self.use_multiprocessing = False
+            self.use_mmap = True
+            self.cache_hashes = True
             
         # 更新UI
         self.auto_select_checkbox.setChecked(self.auto_select_duplicates)
@@ -234,6 +314,17 @@ class SettingsDialog(QDialog):
         self.folder_line_edit.setText(self.auto_select_folder)
         self.folder_line_edit.setEnabled(self.auto_select_strategy == "folder")
         
+        # 设置大文件优化选项
+        self.fast_scan_checkbox.setChecked(self.fast_scan_mode)
+        # 设置快速扫描大小
+        size_index = self.fast_scan_combo.findData(self.fast_scan_size)
+        if size_index >= 0:
+            self.fast_scan_combo.setCurrentIndex(size_index)
+        self.fast_scan_combo.setEnabled(self.fast_scan_mode)
+        self.multiprocessing_checkbox.setChecked(self.use_multiprocessing)
+        self.mmap_checkbox.setChecked(self.use_mmap)
+        self.cache_checkbox.setChecked(self.cache_hashes)
+        
     def save_settings(self):
         """保存设置"""
         self.auto_select_duplicates = self.auto_select_checkbox.isChecked()
@@ -253,6 +344,13 @@ class SettingsDialog(QDialog):
             
         self.auto_select_folder = self.folder_line_edit.text().strip()
         
+        # 保存大文件优化设置
+        self.fast_scan_mode = self.fast_scan_checkbox.isChecked()
+        self.fast_scan_size = self.fast_scan_combo.currentData()
+        self.use_multiprocessing = self.multiprocessing_checkbox.isChecked()
+        self.use_mmap = self.mmap_checkbox.isChecked()
+        self.cache_hashes = self.cache_checkbox.isChecked()
+        
         # 保存到配置文件
         try:
             config = {
@@ -263,7 +361,13 @@ class SettingsDialog(QDialog):
                 'file_type_filter': self.file_type_filter,
                 'custom_extensions': self.custom_extensions,
                 'auto_select_strategy': self.auto_select_strategy,
-                'auto_select_folder': self.auto_select_folder
+                'auto_select_folder': self.auto_select_folder,
+                # 大文件优化设置
+                'fast_scan_mode': self.fast_scan_mode,
+                'fast_scan_size': self.fast_scan_size,
+                'use_multiprocessing': self.use_multiprocessing,
+                'use_mmap': self.use_mmap,
+                'cache_hashes': self.cache_hashes
             }
             
             with open(self.config_file, 'w', encoding='utf-8') as f:
@@ -302,6 +406,26 @@ class SettingsDialog(QDialog):
     def get_auto_select_folder(self):
         """获取自动选择的特定文件夹"""
         return self.auto_select_folder
+        
+    def get_fast_scan_mode(self):
+        """获取快速扫描模式设置"""
+        return self.fast_scan_mode
+        
+    def get_fast_scan_size(self):
+        """获取快速扫描大小设置（MB）"""
+        return self.fast_scan_size
+        
+    def get_use_multiprocessing(self):
+        """获取是否使用多进程设置"""
+        return self.use_multiprocessing
+        
+    def get_use_mmap(self):
+        """获取是否使用内存映射设置"""
+        return self.use_mmap
+        
+    def get_cache_hashes(self):
+        """获取是否缓存哈希值设置"""
+        return self.cache_hashes
         
     def accept(self):
         """确定按钮点击事件"""
