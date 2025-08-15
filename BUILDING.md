@@ -247,6 +247,8 @@ name: Build FileSweeper
 on:
   push:
     branches: [ main ]
+    tags:
+      - 'v*'
   pull_request:
     branches: [ main ]
 
@@ -255,7 +257,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        architecture: [x64, x86]
+        architecture: [x64]
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -272,7 +274,7 @@ jobs:
       run: |
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon.ico --add-data "icons;icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 使用最新版本
       with:
         name: FileSweeper-Windows-${{ matrix.architecture }}
         path: dist/FileSweeper.exe
@@ -281,13 +283,14 @@ jobs:
     runs-on: macos-latest
     strategy:
       matrix:
-        architecture: [x64, arm64]
+        architecture: [arm64, x64]
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.10'
+        architecture: ${{ matrix.architecture }}
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
@@ -299,10 +302,9 @@ jobs:
     - name: Create Universal Binary (Optional)
       if: matrix.architecture == 'arm64'
       run: |
-        # 创建通用二进制文件的额外步骤
         echo "Creating universal binary steps here"
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 使用最新版本
       with:
         name: FileSweeper-macOS-${{ matrix.architecture }}
         path: dist/FileSweeper
@@ -311,7 +313,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        architecture: [x64, arm64]
+        architecture: [x64]
     steps:
     - uses: actions/checkout@v3
     - name: Set up Python
@@ -329,11 +331,37 @@ jobs:
       run: |
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon_linux_256x256.png --add-data "icons:icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4  # 使用最新版本
       with:
         name: FileSweeper-Linux-${{ matrix.architecture }}
         path: dist/FileSweeper
+
+  create-release:
+    needs: [build-windows, build-macos, build-linux]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4  # 使用最新版本
+      with:
+        path: artifacts
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/FileSweeper-Windows-x64/FileSweeper.exe
+          artifacts/FileSweeper-macOS-arm64/FileSweeper
+          artifacts/FileSweeper-macOS-x64/FileSweeper
+          artifacts/FileSweeper-Linux-x64/FileSweeper
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 ```
+
+> **注意**：GitHub 定期弃用旧版本的 Actions。如果构建失败，请检查是否使用了已弃用的 Action 版本，并更新为最新版本。常见需要更新的 Action 包括：
+> - `actions/checkout`
+> - `actions/setup-python`
+> - `actions/upload-artifact`
+> - `actions/download-artifact`
 
 ### 为不同CPU架构打包
 
@@ -775,6 +803,14 @@ PyInstaller 使用 spec 文件来控制打包过程。可以生成并修改 spec
    - 警告信息：`Onefile mode in combination with macOS .app bundles (windowed mode) don't make sense`
    - 解决方法：考虑使用 onedir 模式替代 onefile 模式
    - 或者忽略警告，因为应用程序仍然可以正常工作
+
+7. **GitHub Actions 版本弃用问题**：
+   - 错误信息：`Error: This request has been automatically failed because it uses a deprecated version of ...`
+   - 解决方法：更新 GitHub Actions 工作流文件中的 Action 版本
+   - 常见需要更新的 Action：
+     - `actions/upload-artifact@v3` → `actions/upload-artifact@v4`
+     - `actions/download-artifact@v3` → `actions/download-artifact@v4`
+     - 检查其他 Action 是否有更新版本
 
 ### 平台特定问题
 

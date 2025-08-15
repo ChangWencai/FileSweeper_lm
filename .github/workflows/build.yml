@@ -30,7 +30,7 @@ jobs:
       run: |
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon.ico --add-data "icons;icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: FileSweeper-Windows-${{ matrix.architecture }}
         path: dist/FileSweeper.exe
@@ -60,7 +60,7 @@ jobs:
       run: |
         echo "Creating universal binary steps here"
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: FileSweeper-macOS-${{ matrix.architecture }}
         path: dist/FileSweeper
@@ -87,7 +87,7 @@ jobs:
       run: |
         pyinstaller --name FileSweeper --onefile --windowed --icon=icons/icon_linux_256x256.png --add-data "icons:icons" --hidden-import=send2trash --hidden-import=psutil main.py
     - name: Upload artifacts
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: FileSweeper-Linux-${{ matrix.architecture }}
         path: dist/FileSweeper
@@ -98,7 +98,7 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     steps:
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
     - name: Create Release
